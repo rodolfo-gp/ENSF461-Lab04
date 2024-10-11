@@ -24,58 +24,181 @@ struct job {
 // the workload list
 struct job *head = NULL;
 
+void append_to(struct job **head_pointer, int arrival, int length, int tickets) {
+    if (*head_pointer == NULL) {
+        struct job *new_job = (struct job *)malloc(sizeof(struct job));
+        if (new_job == NULL) {
+            exit(-1);  // Exit if memory allocation fails
+        }
 
-void append_to(struct job **head_pointer, int arrival, int length, int tickets){
+        new_job->id = 0;  // Initialize the job ID to 0
+        new_job->arrival = arrival;
+        new_job->length = length;
+        new_job->tickets = tickets;
+        new_job->next = NULL;
 
-    // TODO: create a new job and init it with proper data
+        *head_pointer = new_job;  // Set the head pointer to the new job
+        return;
+    }
+    
+    struct job *p1 = *head_pointer;
+    // Traverse to the end of the list
+    while (p1->next != NULL) {
+        p1 = p1->next;
+    }
+
+    // Append the new job at the end
+    struct job *new_job = (struct job *)malloc(sizeof(struct job));
+    if (new_job == NULL) {
+        exit(-1);  // Exit if memory allocation fails
+    }
+    new_job->id = p1->id + 1;  // Increment job ID based on the last job
+    new_job->arrival = arrival;
+    new_job->length = length;
+    new_job->tickets = tickets;
+    new_job->next = NULL;
+
+    p1->next = new_job;  // Link the new job at the end
     return;
 }
 
 
-void read_job_config(const char* filename)
-{
+void read_job_config(const char* filename) {
     FILE *fp;
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    int tickets  = 0;
+    char line[1024];  // Using fgets instead of getline
+    int tickets = 0;
 
     char* delim = ",";
     char *arrival = NULL;
     char *length = NULL;
 
-    // TODO, error checking
     fp = fopen(filename, "r");
-    if (fp == NULL)
+    if (fp == NULL) {
+        perror("Error opening file");
         exit(EXIT_FAILURE);
+    }
 
-    // TODO: if the file is empty, we should just exit with error
-    while ((read = getline(&line, &len, fp)) != -1)
-    {
-        if( line[read-1] == '\n' )
-            line[read-1] =0;
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        line[strcspn(line, "\n")] = 0; // Remove newline character
         arrival = strtok(line, delim);
         length = strtok(NULL, delim);
-        tickets += 100;
-
-        append_to(&head, atoi(arrival), atoi(length), tickets);
+        if (arrival != NULL && length != NULL) {
+            tickets += 100;
+            append_to(&head, atoi(arrival), atoi(length), tickets);
+        }
     }
 
     fclose(fp);
-    if (line) free(line);
 }
 
-
-void policy_SJF()
-{
+void policy_SJF(struct job* head) {
+    sortLength(&head);
     printf("Execution trace with SJF:\n");
+    struct job *current = head;
+    int time = 0;
 
-    // TODO: implement SJF policy
+    while (current != NULL) {
+        // If the job has not arrived yet, idle the CPU until it does
+        if (time < current->arrival) {
+            //printf("t=%d: CPU idle until Job %d arrives at [%d]\n", time, current->id, current->arrival);
+            time = current->arrival;  // Move time forward to job arrival
+        }
 
+        // Print job execution trace
+        printf("t=%d: [Job %d] arrived at [%d], ran for: [%d]\n", time, current->id, current->arrival, current->length);
+        time += current->length;  // Increment time by the length of the current job
+        current = current->next;   // Move to the next job
+    }
+    
     printf("End of execution with SJF.\n");
-
 }
 
+void sortLength(struct job** headRef) {
+    struct job* newHead = NULL;
+    struct job* p1 = *headRef;
+
+    if (*headRef == NULL) {
+        return;
+    }
+
+    while (p1 != NULL) {
+        insertWLength(&newHead, p1);
+        p1 = p1->next; // Move to the next job
+    }
+
+    // Deallocate old nodes
+    struct job* current = *headRef; // Use headRef to point to the original list
+    struct job* nextJob;
+
+    while (current != NULL) {
+        nextJob = current->next; // Store the next job
+        free(current);           // Free the current job
+        current = nextJob;       // Move to the next job
+    }
+    *headRef = newHead; // Update the head reference to point to the new list
+}
+
+
+void insertWLength(struct job** newHead, struct job* p){
+    if (*newHead == NULL) {
+        struct job *new_job = (struct job *)malloc(sizeof(struct job));
+        if (new_job == NULL) {
+            exit(-1);  // Exit if memory allocation fails
+        }
+
+        new_job->id = p->id;  
+        new_job->arrival = p->arrival;
+        new_job->length = p->length;
+        new_job->tickets = p->tickets;
+        new_job->next = NULL;
+
+        *newHead = new_job;  // Set the head pointer to the new job
+        return;
+    }
+    int pArrival = p->arrival;
+    int pLength = p->length;
+
+    struct job *p1 = *newHead;
+    // Traverse to the end of the list
+   
+    while (1) { 
+        if (pArrival > p1->arrival && p1->next != NULL)
+        {
+            p1 = p1->next;
+        }else if (pArrival >= p1->arrival && pLength > p1->length && p1->next != NULL && p1->next->length < pLength )
+        {                                                                                                              
+            p1 = p1->next;
+        }else{
+            break;
+        }
+                                                                         
+    }
+    
+    
+
+    
+    struct job *new_job = (struct job *)malloc(sizeof(struct job));
+    if (new_job == NULL) {
+        exit(-1);  // Exit if memory allocation fails
+    }
+    new_job->id = p->id;  
+    new_job->arrival = p->arrival;
+    new_job->length = p->length;
+    new_job->tickets = p->tickets;
+    new_job->next = NULL;
+    if(p1 == *newHead){
+        struct job *temp = (*newHead)->next;
+        *newHead = new_job; 
+        new_job->next = temp;
+        
+    } else{
+        struct job *temp = p1->next;
+        p1->next = new_job;  
+        new_job->next = temp;
+    }
+    
+    return;
+}
 
 void policy_STCF()
 {
@@ -117,14 +240,27 @@ void policy_LT(int slice)
 
 }
 
-
-void policy_FIFO(){
+void policy_FIFO() {
     printf("Execution trace with FIFO:\n");
 
-    // TODO: implement FIFO policy
+    struct job *current = head;
+    int time = 0;
 
+    while (current != NULL) {
+        // If the job has not arrived yet, idle the CPU until it does
+        if (time < current->arrival) {
+            //printf("t=%d: CPU idle until Job %d arrives at [%d]\n", time, current->id, current->arrival);
+            time = current->arrival;  // Move time forward to job arrival
+        }
+
+        // Print job execution trace
+        printf("t=%d: [Job %d] arrived at [%d], ran for: [%d]\n", time, current->id, current->arrival, current->length);
+        time += current->length;  // Increment time by the length of the current job
+        current = current->next;   // Move to the next job
+    }
     printf("End of execution with FIFO.\n");
 }
+
 
 
 int main(int argc, char **argv){
@@ -157,6 +293,7 @@ int main(int argc, char **argv){
     tname = argv[4];
 
     read_job_config(tname);
+
 
     if (strcmp(pname, "FIFO") == 0){
         policy_FIFO();
