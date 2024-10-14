@@ -17,7 +17,7 @@ struct job {
     int arrival; // arrival time; safely assume the time unit has the minimal increment of 1
     int length;
     int tickets; // number of tickets for lottery scheduling
-    // TODO: add any other metadata you need to track here
+    int hasRanFor; //amount of time that the job has executed for(used in RR)
     struct job *next;
 };
 
@@ -36,6 +36,7 @@ void append_to(struct job **head_pointer, int arrival, int length, int tickets) 
         new_job->length = length;
         new_job->tickets = tickets;
         new_job->next = NULL;
+        new_job->hasRanFor = 0;
 
         *head_pointer = new_job;  // Set the head pointer to the new job
         return;
@@ -57,6 +58,7 @@ void append_to(struct job **head_pointer, int arrival, int length, int tickets) 
     new_job->length = length;
     new_job->tickets = tickets;
     new_job->next = NULL;
+    new_job->hasRanFor = 0;
 
     p1->next = new_job;  // Link the new job at the end
     return;
@@ -149,15 +151,60 @@ void policy_STCF()
     printf("End of execution with STCF.\n");
 }
 
+void policy_RR(int slice) {
+    int current_time = 0;
+    struct job* currentJob = head;
+    int JobsLeft = 0;
 
-void policy_RR(int slice)
-{
+    // Count how many jobs are left
+    while (currentJob != NULL) {
+        JobsLeft++;
+        currentJob = currentJob->next;
+    }
+
     printf("Execution trace with RR:\n");
+    currentJob = head;
 
-    // TODO: implement RR policy
+    while (JobsLeft > 0) {
+        int jobFound = 0;  // Flag to check if a job was executed in this cycle
+
+        if (currentJob->arrival <= current_time && (currentJob->length - currentJob->hasRanFor) > 0) {
+            int jobExecTime = min(currentJob->length - currentJob->hasRanFor, slice);
+            printf("t=%d: [Job %d] arrived at [%d], ran for: [%d]\n", current_time, currentJob->id, currentJob->arrival, jobExecTime);
+            current_time += jobExecTime;
+
+            
+            currentJob->hasRanFor += jobExecTime;
+
+            
+            if (currentJob->hasRanFor == currentJob->length) {
+                JobsLeft--;
+            }
+
+            jobFound = 1;  
+        }
+
+        
+        if (!jobFound) {
+            struct job* temp = currentJob->next ? currentJob->next : head;
+            while (temp != currentJob && !(temp->arrival <= current_time && (temp->length - temp->hasRanFor)))
+            {
+
+                temp = temp->next ? temp->next : head;
+            }
+            
+            if (temp == currentJob)
+            {
+                current_time++;
+            }
+            
+        }
+        currentJob = currentJob->next ? currentJob->next : head;
+    }
 
     printf("End of execution with RR.\n");
 }
+
 
 
 void policy_LT(int slice)
@@ -244,7 +291,9 @@ int main(int argc, char **argv){
     else if (strcmp(pname, "SJF") == 0)
     {
         policy_SJF();
-        // TODO
+        if (analysis == 1){
+            // TODO: perform analysis
+        }
     }
     else if (strcmp(pname, "STCF") == 0)
     {
@@ -252,6 +301,10 @@ int main(int argc, char **argv){
     }
     else if (strcmp(pname, "RR") == 0)
     {
+        policy_RR(slice);
+        if (analysis == 1){
+            // TODO: perform analysis
+        }
         // TODO
     }
     else if (strcmp(pname, "LT") == 0)
