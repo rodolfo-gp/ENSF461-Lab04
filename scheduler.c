@@ -142,7 +142,7 @@ void policy_SJF() {
     printf("End of execution with SJF.\n");
 }
 
-   void policy_STCF()
+void policy_STCF()
 {
      int current_time = 0; 
     struct job *current_job = NULL;  
@@ -176,14 +176,12 @@ void policy_SJF() {
         } else {
             if (current_job != NULL) {
                 if (shortest->length < current_job->length) {
-                    printf("t=%d: [Job %d] preempted by [Job %d] arriving at [%d]\n",
-                           current_time, current_job->id, shortest->id, shortest->arrival);
-                    current_job->length -= (current_time - current_job->arrival);  // Reduce remaining length
+                    current_job->length -= (current_time - current_job->arrival);
                     current_job = shortest;  
                 }
             } else {
                 current_job = shortest;
-                printf("t=%d: [Job %d] arrived at [%d], ran for [%d]\n",
+                printf("t=%d: [Job %d] arrived at [%d], ran for: [%d]\n",
                        current_time, current_job->id, current_job->arrival, current_job->length);
             }
 
@@ -201,7 +199,7 @@ void policy_SJF() {
                     }
                     ptr = &(*ptr)->next;
                 }
-                current_job = NULL; 
+                current_job = NULL;  // Reset the running job
             }
         }
     }
