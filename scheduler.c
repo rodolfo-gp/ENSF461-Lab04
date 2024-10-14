@@ -353,7 +353,7 @@ int main(int argc, char **argv){
     }
     else if (strcmp(pname, "STCF") == 0)
     {
-        // TODO
+        policy_STCF();
     }
     else if (strcmp(pname, "RR") == 0)
     {
