@@ -20,7 +20,7 @@ struct job {
     int hasRanFor; //amount of time that the job has executed for(used in RR)
     int response_time; //start time - arrival time
     int turnaround_time; //turnaround time
-    int wait_time;
+    int wait_time;  //first exec time - arrival
     struct job *next;
      int completion_time; 
 };
@@ -43,8 +43,8 @@ void append_to(struct job **head_pointer, int arrival, int length, int tickets) 
         new_job->hasRanFor = 0;
         new_job->response_time = -1;
         new_job->turnaround_time = 0;
-        new_job->wait_time = 0;
         new_job->completion_time = -1;
+        new_job->wait_time = -1;
 
         *head_pointer = new_job;  // Set the head pointer to the new job
         return;
@@ -69,8 +69,8 @@ void append_to(struct job **head_pointer, int arrival, int length, int tickets) 
     new_job->hasRanFor = 0;
     new_job->response_time = -1;
     new_job->turnaround_time = 0;
-    new_job->wait_time = 0;
     new_job->completion_time = -1;
+    new_job->wait_time = -1;
 
     p1->next = new_job;  // Link the new job at the end
     return;
@@ -295,90 +295,173 @@ void policy_STCF() {
 
     printf("End of execution with STCF.\n");
 }
-
-
-
-
-
-
-
-
-
 void policy_RR(int slice) {
     int current_time = 0;
     struct job* currentJob = head;
-    int JobsLeft = 0;
+    int jobsLeft = 0;
 
     // Count how many jobs are left
-    while (currentJob != NULL) {
-        JobsLeft++;
-        currentJob = currentJob->next;
+    struct job* temp = head;
+    while (temp != NULL) {
+        jobsLeft++;
+        temp = temp->next;
     }
 
     printf("Execution trace with RR:\n");
     currentJob = head;
 
-    while (JobsLeft > 0) {
+    while (jobsLeft > 0) {
         int jobFound = 0;  // Flag to check if a job was executed in this cycle
 
         if (currentJob->arrival <= current_time && (currentJob->length - currentJob->hasRanFor) > 0) {
-            int jobExecTime = min(currentJob->length - currentJob->hasRanFor, slice);
+            int jobExecTime = (currentJob->length - currentJob->hasRanFor > slice) ? slice : (currentJob->length - currentJob->hasRanFor);
+            
+            // If this is the first time the job is running, set response time
+            if (currentJob->hasRanFor == 0) {
+                currentJob->response_time = current_time - currentJob->arrival;
+            }
+
             printf("t=%d: [Job %d] arrived at [%d], ran for: [%d]\n", current_time, currentJob->id, currentJob->arrival, jobExecTime);
             current_time += jobExecTime;
 
-            
             currentJob->hasRanFor += jobExecTime;
 
-            
+            // Check if the job is completed
             if (currentJob->hasRanFor == currentJob->length) {
-                JobsLeft--;
+                jobsLeft--;
+                currentJob->completion_time = current_time;
+                currentJob->turnaround_time = currentJob->completion_time - currentJob->arrival;
+                currentJob->wait_time = currentJob->turnaround_time - currentJob->length; // Wait time calculation
             }
 
             jobFound = 1;  
         }
 
-        
+        // If no job was executed, find the next job that has arrived
         if (!jobFound) {
             struct job* temp = currentJob->next ? currentJob->next : head;
-            while (temp != currentJob && !(temp->arrival <= current_time && (temp->length - temp->hasRanFor)))
-            {
-
+            while (temp != currentJob && !(temp->arrival <= current_time && (temp->length - temp->hasRanFor) > 0)) {
                 temp = temp->next ? temp->next : head;
             }
             
-            if (temp == currentJob)
-            {
+            // If we did not find any job that can run, increment current_time
+            if (temp == currentJob) {
                 current_time++;
             }
-            
         }
+
+        // Move to the next job in the list
         currentJob = currentJob->next ? currentJob->next : head;
     }
 
     printf("End of execution with RR.\n");
 }
 
-
-
-void policy_LT(int slice)
-{
+void policy_LT(int slice) {
     printf("Execution trace with LT:\n");
-
-    // Leave this here, it will ensure the scheduling behavior remains deterministic
     srand(42);
 
-    // In the following, you'll need to:
-    // Figure out which active job to run first
-    // Pick the job with the shortest remaining time
-    // Considers jobs in order of arrival, so implicitly breaks ties by choosing the job with the lowest ID
+    int currentTime = 0;
+    int ticketCount = 0;
+    int jobsToDo = 0;
 
-    // To achieve consistency with the tests, you are encouraged to choose the winning ticket as follows:
-    // int winning_ticket = rand() % total_tickets;
-    // And pick the winning job using the linked list approach discussed in class, or equivalent
+    // Give Tickets
+    struct job* current = head;
+    while (current != NULL) {
+        ticketCount += current->tickets;
+        jobsToDo++;
+        current->wait_time = -1;  // initialize wait time to -1 to detect first run
+        current = current->next;
+    }
+
+    while (jobsToDo > 0) {
+    int winner = (rand() % ticketCount) + 1; // Randomly select a ticket
+
+    // Find the job corresponding to the winning ticket
+    current = head;
+    int ticketIndex = current->tickets;
+    
+    // Traverse the linked list to find the winning job
+    while (winner > ticketIndex) {
+        current = current->next;
+        ticketIndex += current->tickets;
+
+        // If we reach the end of the list and still haven't found an eligible job, reset to head
+        if (current == NULL) {
+            current = head;
+            ticketIndex = current->tickets; // Reset ticket index for head job
+        }
+    }
+    
+    
+    
+
+    // Check if the current job has arrived
+    struct job* temp = head;
+
+// If the current job has not arrived yet, look for the first available job
+    if (current->arrival > currentTime) {
+        // Iterate through the job list to find the first job that has arrived
+        temp = head;
+        while (temp != NULL) {
+            // Check if the job has arrived and is not yet completed
+            if (temp->arrival <= currentTime && (temp->length > temp->hasRanFor)) {
+                // If we found a valid job that has arrived and isn't completed
+                current = temp;  // Set current to this job
+                break;  // Exit the loop
+            }
+            temp = temp->next;  // Move to the next job
+        }
+        
+        // If no job was found, increment currentTime
+        if (temp == NULL || current->arrival > currentTime) {
+            currentTime++;  // Increment time if no valid job found
+        }
+
+        // Optionally, you can print or log that the scheduler is idle
+        continue;  // Skip this iteration and check for another job
+    }
+
+
+    // Job has arrived and is eligible for execution
+    // Set Start Timer only for the first execution
+    if (current->hasRanFor == 0) {
+        current->response_time = currentTime - current->arrival;
+    }
+
+    // If remaining time is more than slice, run for slice
+    int jobLengthLeft = current->length - current->hasRanFor;
+    if (jobLengthLeft > slice) {
+        printf("t=%d: [Job %d] arrived at [%d], ran for: [%d]\n", 
+                currentTime, current->id, current->arrival, slice);
+        currentTime += slice;
+        current->hasRanFor += slice;
+
+    // If remaining time is not 0, but not more than slice (job is not completed), then do final run
+    } else if (jobLengthLeft > 0) {
+        printf("t=%d: [Job %d] arrived at [%d], ran for: [%d]\n", 
+                currentTime, current->id, current->arrival, jobLengthLeft);
+        currentTime += jobLengthLeft;
+        current->hasRanFor += jobLengthLeft;
+
+        // Final job completion and statistics update
+        current->completion_time = currentTime;
+        current->turnaround_time = currentTime - current->arrival;
+        current->wait_time = current->turnaround_time - current->length;
+
+        // Remove tickets of completed job and decrement jobsToDo count
+        ticketCount -= current->tickets;
+        current->tickets = 0;
+        jobsToDo--;
+    }
+}
 
     printf("End of execution with LT.\n");
-
+    return;
 }
+
+
+
 
 void policy_FIFO() {
     printf("Execution trace with FIFO:\n");
@@ -503,7 +586,12 @@ int main(int argc, char **argv){
     }
     else if (strcmp(pname, "LT") == 0)
     {
-        // TODO
+        policy_LT(slice);
+        if (analysis == 1){
+            printf("Begin analyzing LT:\n");
+            analyze_jobs();
+            printf("End analyzing LT.\n");
+        }
     }
 
 	exit(0);
